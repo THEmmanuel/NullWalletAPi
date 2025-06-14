@@ -1,4 +1,5 @@
-const ethers = require('ethers');
+const { ethers } = require('ethers');
+const chainUtils = require('./chainUtils');
 const {
 	Network,
 	Alchemy,
@@ -159,52 +160,59 @@ const sendToken = async (
 	amount,
 	receiverWalletAddress,
 	tokenToSend,
-	senderUsername,
-	walletName
+	senderWalletAddress,
+	senderPrivateKey,
+	chainId
 ) => {
 	try {
-		// Fetch the sender from the database
-		const sender = await Users.findOne({
-			username: senderUsername
-		});
+		// Validate chain and token combination
+		const { chain, token } = chainUtils.validateChainAndToken(chainId, tokenToSend);
 
-		if (!sender) {
-			throw new Error('Sender not found');
-		}
+		// Create provider and wallet
+		const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+		const wallet = new ethers.Wallet(senderPrivateKey, provider);
 
-		// Find the sender's wallet based on the walletName or token
-		const senderWallet = sender.userWallets.find(wallet => wallet.walletName === walletName);
-
-		if (!senderWallet) {
-			throw new Error('Sender wallet not found');
-		}
-
-		// Extract the sender's private key
-		const sendersPrivateKey = senderWallet.walletKey;
-
-		let sentTx; // Variable to store the transaction result
-
-		// Check the token type and call the appropriate function
-		if (tokenToSend.toLowerCase() === 'eth') {
-			sentTx = await sendETH(
-				receiverWalletAddress,
-				amount,
-				sendersPrivateKey
-			);
+		let transaction;
+		if (token.type === 'native' || !token.address) {
+			// Send native token (ETH, BNB, MATIC, etc.)
+			const amountInWei = ethers.parseUnits(amount.toString(), token.decimals);
+			
+			transaction = await wallet.sendTransaction({
+				to: receiverWalletAddress,
+				value: amountInWei
+			});
 		} else {
-			sentTx = await sendERCToken(
-				amount,
-				receiverWalletAddress,
-				tokenToSend,
-				sendersPrivateKey
+			// Send ERC20 token
+			const contract = new ethers.Contract(
+				token.address,
+				[
+					'function transfer(address to, uint256 amount) returns (bool)',
+					'function decimals() view returns (uint8)'
+				],
+				wallet
 			);
+
+			const amountInWei = ethers.parseUnits(amount.toString(), token.decimals);
+			transaction = await contract.transfer(receiverWalletAddress, amountInWei);
 		}
 
-		console.log(`Token sent successfully: ${amount} ${tokenToSend}`);
-		return sentTx; // Return the transaction result
+		// Wait for transaction to be mined
+		const receipt = await transaction.wait();
+
+		return {
+			success: true,
+			transactionHash: receipt.hash,
+			blockNumber: receipt.blockNumber,
+			chain: chain.name,
+			token: tokenToSend.toUpperCase(),
+			amount: amount,
+			from: senderWalletAddress,
+			to: receiverWalletAddress,
+			type: token.type
+		};
 	} catch (error) {
-		console.error('Error sending token:', error.message);
-		throw error; // Propagate the error to the caller
+		console.error('Error sending token:', error);
+		throw new Error(`Failed to send token: ${error.message}`);
 	}
 };
 

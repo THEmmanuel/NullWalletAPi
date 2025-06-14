@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const Users = require('../models/user');
+const { ethers } = require('ethers');
+const { sendToken } = require('../utils/ETHWallet');
+const chainUtils = require('../utils/chainUtils');
+const tokens = require('../config/tokens');
+const { Users } = require('../models/user');
 const {
 	getTokenBalance,
-	sendToken,
 	getOtherTokenBalances
 } = require('../utils/ETHWallet.js')
 
@@ -151,37 +154,222 @@ router.get('/get-token-price/:token', async (req, res) => {
 router.post('/send-token', async (req, res) => {
 	const {
 		amount,
-		walletAddress,
+		receiverWalletAddress,
 		tokenToSend,
-		senderUsername,
-		walletName
+		senderWalletAddress,
+		senderPrivateKey,
+		chainId
 	} = req.body;
 
 	try {
-		// Capture the result from sendToken function
+		// Validate required fields
+		if (!amount || !receiverWalletAddress || !tokenToSend || !senderWalletAddress || !senderPrivateKey || !chainId) {
+			return res.status(400).json({
+				success: false,
+				error: 'Missing required fields',
+				details: 'All fields are required: amount, receiverWalletAddress, tokenToSend, senderWalletAddress, senderPrivateKey, chainId'
+			});
+		}
+
+		// Validate amount
+		if (isNaN(amount) || amount <= 0) {
+			return res.status(400).json({
+				success: false,
+				error: 'Invalid amount',
+				details: 'Amount must be a positive number'
+			});
+		}
+
+		// Send token
 		const result = await sendToken(
 			amount,
-			walletAddress,
+			receiverWalletAddress,
 			tokenToSend,
-			senderUsername,
-			walletName
+			senderWalletAddress,
+			senderPrivateKey,
+			chainId
 		);
 
-		// Include the result in the success response
 		res.status(200).json({
 			success: true,
-			message: `Token ${tokenToSend} sent to ${walletAddress}`,
-			data: result // This will contain the transaction details
+			message: `Token ${tokenToSend} sent to ${receiverWalletAddress} on ${result.chain}`,
+			data: result
 		});
 	} catch (error) {
+		console.error('Error sending token:', error);
 		res.status(500).json({
 			success: false,
-			error: 'Something went wrong',
-			details: error.message // Include error details
+			error: 'Failed to send token',
+			details: error.message
 		});
 	}
 });
 
 
+
+// Get wallet balance for a specific token on a specific chain
+router.get('/balance/:chainId/:tokenSymbol/:walletAddress', async (req, res) => {
+	try {
+		const { chainId, tokenSymbol, walletAddress } = req.params;
+
+		// Validate chain and token combination
+		const { chain, token } = chainUtils.validateChainAndToken(chainId, tokenSymbol);
+
+		// Create provider for the specific chain
+		const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+
+		let balance;
+		if (token.type === 'native' || !token.address) {
+			// Get native token balance
+			balance = await provider.getBalance(walletAddress);
+			balance = ethers.formatUnits(balance, token.decimals);
+		} else {
+			// Get ERC20 token balance
+			const contract = new ethers.Contract(
+				token.address,
+				['function balanceOf(address) view returns (uint256)'],
+				provider
+			);
+			balance = await contract.balanceOf(walletAddress);
+			balance = ethers.formatUnits(balance, token.decimals);
+		}
+
+		res.json({
+			success: true,
+			data: {
+				chain: chain.name,
+				token: tokenSymbol.toUpperCase(),
+				walletAddress,
+				balance,
+				decimals: token.decimals,
+				type: token.type
+			}
+		});
+	} catch (error) {
+		console.error('Error getting balance:', error);
+		res.status(500).json({
+			success: false,
+			error: 'Failed to get balance',
+			details: error.message
+		});
+	}
+});
+
+// Get all token balances for a wallet on a specific chain
+router.get('/balances/:chainId/:walletAddress', async (req, res) => {
+	try {
+		const { chainId, walletAddress } = req.params;
+
+		// Get all supported tokens for the chain
+		const chainTokens = chainUtils.getChainTokens(chainId);
+		const chain = chainUtils.getChain(chainId);
+
+		if (!chain) {
+			return res.status(400).json({
+				success: false,
+				error: `Chain ${chainId} is not supported`
+			});
+		}
+
+		// Create provider for the specific chain
+		const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+
+		// Get balances for all tokens
+		const balances = await Promise.all(
+			chainTokens.map(async (token) => {
+				let balance;
+				if (token.type === 'native' || !token.address) {
+					balance = await provider.getBalance(walletAddress);
+					balance = ethers.formatUnits(balance, token.decimals);
+				} else {
+					const contract = new ethers.Contract(
+						token.address,
+						['function balanceOf(address) view returns (uint256)'],
+						provider
+					);
+					balance = await contract.balanceOf(walletAddress);
+					balance = ethers.formatUnits(balance, token.decimals);
+				}
+
+				return {
+					symbol: token.symbol,
+					name: token.name,
+					balance,
+					decimals: token.decimals,
+					type: token.type
+				};
+			})
+		);
+
+		res.json({
+			success: true,
+			data: {
+				chain: chain.name,
+				walletAddress,
+				balances
+			}
+		});
+	} catch (error) {
+		console.error('Error getting balances:', error);
+		res.status(500).json({
+			success: false,
+			error: 'Failed to get balances',
+			details: error.message
+		});
+	}
+});
+
+// Get all wallets for a user
+router.get('/user/:userId', async (req, res) => {
+	try {
+		const { userId } = req.params;
+		const user = await Users.findOne({ userID: userId });
+
+		if (!user) {
+			return res.status(404).json({
+				success: false,
+				error: 'User not found'
+			});
+		}
+
+		res.json({
+			success: true,
+			data: {
+				userId,
+				wallets: user.userWallets
+			}
+		});
+	} catch (error) {
+		console.error('Error getting user wallets:', error);
+		res.status(500).json({
+			success: false,
+			error: 'Failed to get user wallets',
+			details: error.message
+		});
+	}
+});
+
+// Get supported chains and tokens
+router.get('/supported', (req, res) => {
+	try {
+		const enabledChains = chainUtils.getEnabledChains();
+		const supportedTokens = Object.values(tokens); // Use tokens directly from config
+
+		res.json({
+			success: true,
+			data: {
+				chains: enabledChains,
+				tokens: supportedTokens
+			}
+		});
+	} catch (error) {
+		console.error('Error getting supported chains and tokens:', error);
+		res.status(500).json({
+			success: false,
+			error: 'Failed to get supported chains and tokens',
+			details: error.message
+		});
+	}
+});
 
 module.exports = router;

@@ -1,38 +1,15 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// Message Schema
-const messageSchema = new Schema({
-	sender: {
-		type: Schema.Types.ObjectId,
-		ref: 'user', // Reference to the User model
-		required: true,
-	},
-	receiver: {
-		type: Schema.Types.ObjectId,
-		ref: 'user', // Reference to the User model
-		required: true,
-	},
-	message: {
-		type: String,
-		required: true,
-	},
-	timestamp: {
-		type: Date,
-		default: Date.now,
-	},
-	status: {
-		type: String,
-		enum: ['sent', 'delivered', 'read'],
-		default: 'sent',
-	},
-});
-
 // User Schema
 const userSchema = new Schema({
 	email: {
 		type: String,
-		required: true,
+		required: function() {
+			return this.authMethod === 'password';
+		},
+		sparse: true,
+		unique: true
 	},
 	username: {
 		type: String,
@@ -41,40 +18,67 @@ const userSchema = new Schema({
 	userID: {
 		type: String,
 		required: true,
+		unique: true
 	},
-
+	password: {
+		type: String,
+		required: function() {
+			return this.authMethod === 'password';
+		}
+	},
+	token: {
+		type: String,
+		required: function() {
+			return this.authMethod === 'token';
+		}
+	},
+	authMethod: {
+		type: String,
+		enum: ['password', 'token'],
+		required: true
+	},
+	isEmailVerified: {
+		type: Boolean,
+		default: false
+	},
+	resetToken: String,
+	resetTokenExpiry: Date,
+	recoveryToken: String,
+	recoveryTokenExpiry: Date,
 	transactionPIN: {
 		type: String,
 	},
-
 	userWallets: [{
 		walletName: String,
 		walletAddress: String,
 		walletKey: String,
 		walletPhrase: String,
-	}, ],
-
+	}],
 	userBankAccounts: [{
 		bankName: String,
 		bankAccountName: String,
 		bankAccountNumber: String,
-	}, ],
-
+	}],
 	currentChain: {
 		type: String
 	},
-	// Add a reference to messages sent/received
-	messages: [{
-		type: Schema.Types.ObjectId,
-		ref: 'message', // Reference to the Message model
-	}, ],
+	lastLogin: Date,
+	failedLoginAttempts: {
+		type: Number,
+		default: 0
+	},
+	accountLocked: {
+		type: Boolean,
+		default: false
+	},
+	accountLockExpiry: Date
+}, {
+	timestamps: true
 });
 
 // Export models
 const Users = mongoose.model('Users', userSchema);
-const Message = mongoose.model('message', messageSchema);
 
 module.exports = {
-	Users,
-	Message
+	Users
 };
