@@ -9,6 +9,10 @@ const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const walletRoutes = require('./routes/wallet');
 
+// Import NullNet routes
+const nullnetWalletRoutes = require('./modules/nullnet/routes/wallet.routes');
+const nullnetAssetRoutes = require('./modules/nullnet/routes/asset.routes');
+
 const MONGO_URI = process.env.MONGO_URI
 
 app.use(bodyParser.urlencoded({
@@ -32,6 +36,11 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 app.use("/api/auth", authRoutes); // Add auth routes
 app.use("/users", userRoutes); // Add user routes
 app.use("/wallet", walletRoutes); // Add wallet routes
+
+// Add NullNet routes
+app.use("/api/nullnet/wallets", nullnetWalletRoutes); // Add NullNet wallet routes
+app.use("/api/nullnet/assets", nullnetAssetRoutes); // Add NullNet asset routes
+
 // app.use("/assetx", assetXRoutes); // Add assetX routes
 // app.use("/transactions", transacti0onRoutes); // Add assetX routes
 

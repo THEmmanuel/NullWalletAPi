@@ -61,4 +61,4 @@ const chainUtils = {
     }
 };
 
-module.exports = chainUtils; 
+module.exports = chainUtils;
