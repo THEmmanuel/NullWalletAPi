@@ -88,6 +88,21 @@ const chains = {
         blockExplorer: 'https://testnet.bscscan.com',
         tokens: ['bnb', 'busd', 'usdt'],
         isEnabled: true
+    },
+    nullnet: {
+        id: 'nullnet',
+        name: 'NullNet',
+        network: 'mainnet',
+        rpcUrl: null, // NullNet doesn't use external RPC
+        chainId: 999999,
+        nativeCurrency: {
+            name: 'NullNet Token',
+            symbol: 'NULL',
+            decimals: 18
+        },
+        blockExplorer: null, // NullNet doesn't have a block explorer yet
+        tokens: ['gold', 'silver', 'platinum', 'diamond'], // Example NullNet assets
+        isEnabled: true
     }
 };
 

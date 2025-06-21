@@ -45,6 +45,23 @@ const chainUtils = {
             throw new Error(`Chain ${chainId} is not supported`);
         }
 
+        // Special handling for NullNet
+        if (chainId === 'nullnet') {
+            const token = tokens[symbol.toLowerCase()];
+            if (!token) {
+                throw new Error(`Token ${symbol} is not supported`);
+            }
+
+            if (!token.chains[chainId]) {
+                throw new Error(`Token ${symbol} is not supported on NullNet`);
+            }
+
+            return {
+                chain,
+                token: token.chains[chainId]
+            };
+        }
+
         const token = tokens[symbol.toLowerCase()];
         if (!token) {
             throw new Error(`Token ${symbol} is not supported`);

@@ -146,6 +146,55 @@ const tokens = {
                 decimals: 18
             }
         }
+    },
+    // NullNet Assets
+    gold: {
+        symbol: 'GOLD',
+        name: 'Gold Coin',
+        decimals: 18,
+        type: 'nullnet',
+        chains: {
+            nullnet: {
+                address: null, // NullNet assets don't have contract addresses
+                decimals: 18
+            }
+        }
+    },
+    silver: {
+        symbol: 'SILVER',
+        name: 'Silver Coin',
+        decimals: 18,
+        type: 'nullnet',
+        chains: {
+            nullnet: {
+                address: null,
+                decimals: 18
+            }
+        }
+    },
+    platinum: {
+        symbol: 'PLATINUM',
+        name: 'Platinum Coin',
+        decimals: 18,
+        type: 'nullnet',
+        chains: {
+            nullnet: {
+                address: null,
+                decimals: 18
+            }
+        }
+    },
+    diamond: {
+        symbol: 'DIAMOND',
+        name: 'Diamond Coin',
+        decimals: 18,
+        type: 'nullnet',
+        chains: {
+            nullnet: {
+                address: null,
+                decimals: 18
+            }
+        }
     }
 };
 

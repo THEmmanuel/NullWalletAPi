@@ -5,6 +5,7 @@ const { sendToken } = require('../utils/ETHWallet');
 const chainUtils = require('../utils/chainUtils');
 const tokens = require('../config/tokens');
 const { Users } = require('../models/user');
+const { NullNetService } = require('../utils/NullNetService');
 const {
 	getTokenBalance,
 	getOtherTokenBalances
@@ -15,18 +16,17 @@ const {
 } = require('../utils/TradeTools')
 const axios = require('axios');
 
-
-
 const {
 	API_KEY,
 	PRIVATE_KEY
 } = process.env;
 
+// Initialize NullNet service
+const nullNetService = new NullNetService();
 
 router.get('/', (req, res) => {
 	res.send('Wallet actions')
 });
-
 
 router.get('/get-token-balance/:walletAddress/:contractAddress/:chain', async (req, res) => {
 	const {
@@ -35,10 +35,19 @@ router.get('/get-token-balance/:walletAddress/:contractAddress/:chain', async (r
 		chain
 	} = req.params;
 
-	console.log(`Received request to fetch token balance for wallet address: ${walletAddress} and contract address: ${contractAddress}`);
+	console.log(`Received request to fetch token balance for wallet address: ${walletAddress} and contract address: ${contractAddress} on chain: ${chain}`);
 
 	try {
-		const balance = await getTokenBalance(walletAddress, contractAddress, chain);
+		let balance;
+		
+		// Handle NullNet chain
+		if (chain === 'nullnet') {
+			balance = await nullNetService.getTokenBalance(walletAddress, contractAddress, chain);
+		} else {
+			// Handle other chains using existing logic
+			balance = await getTokenBalance(walletAddress, contractAddress, chain);
+		}
+		
 		console.log(`Balance retrieved successfully: ${balance}`);
 		res.json({
 			balance: balance
@@ -46,12 +55,11 @@ router.get('/get-token-balance/:walletAddress/:contractAddress/:chain', async (r
 	} catch (error) {
 		console.error('Error in route handler:', error);
 		res.status(500).json({
-			error: 'Failed to fetch token balance'
+			error: 'Failed to fetch token balance',
+			details: error.message
 		});
 	}
 });
-
-
 
 // token param exists solely so the price can be fetched from coingecko and fallbacks.
 router.get('/get-token-usd-balance/:walletAddress/:contractAddress/:token/:chain', async (req, res) => {
@@ -180,15 +188,29 @@ router.post('/send-token', async (req, res) => {
 			});
 		}
 
-		// Send token
-		const result = await sendToken(
-			amount,
-			receiverWalletAddress,
-			tokenToSend,
-			senderWalletAddress,
-			senderPrivateKey,
-			chainId
-		);
+		let result;
+		
+		// Handle NullNet chain
+		if (chainId === 'nullnet') {
+			result = await nullNetService.sendToken(
+				amount,
+				receiverWalletAddress,
+				tokenToSend,
+				senderWalletAddress,
+				senderPrivateKey,
+				chainId
+			);
+		} else {
+			// Handle other chains using existing logic
+			result = await sendToken(
+				amount,
+				receiverWalletAddress,
+				tokenToSend,
+				senderWalletAddress,
+				senderPrivateKey,
+				chainId
+			);
+		}
 
 		res.status(200).json({
 			success: true,
@@ -212,7 +234,27 @@ router.get('/balance/:chainId/:tokenSymbol/:walletAddress', async (req, res) => 
 	try {
 		const { chainId, tokenSymbol, walletAddress } = req.params;
 
-		// Validate chain and token combination
+		// Handle NullNet chain
+		if (chainId === 'nullnet') {
+			const balance = await nullNetService.getTokenBalance(walletAddress, tokenSymbol, chainId);
+			const asset = await nullNetService.getAsset(tokenSymbol.toUpperCase());
+			
+			res.json({
+				success: true,
+				data: {
+					chain: 'NullNet',
+					token: tokenSymbol.toUpperCase(),
+					walletAddress,
+					balance: parseFloat(balance),
+					decimals: 18,
+					type: 'nullnet',
+					assetName: asset ? asset.name : tokenSymbol.toUpperCase()
+				}
+			});
+			return;
+		}
+
+		// Validate chain and token combination for other chains
 		const { chain, token } = chainUtils.validateChainAndToken(chainId, tokenSymbol);
 
 		// Create provider for the specific chain
@@ -259,6 +301,34 @@ router.get('/balance/:chainId/:tokenSymbol/:walletAddress', async (req, res) => 
 router.get('/balances/:chainId/:walletAddress', async (req, res) => {
 	try {
 		const { chainId, walletAddress } = req.params;
+
+		// Handle NullNet chain
+		if (chainId === 'nullnet') {
+			const balances = await nullNetService.getWalletBalances(walletAddress, chainId);
+			const assets = await nullNetService.listAssets();
+			
+			// Format balances to match the expected structure
+			const formattedBalances = Object.keys(balances).map(symbol => {
+				const asset = assets.find(a => a.ticker === symbol);
+				return {
+					symbol: symbol,
+					name: asset ? asset.name : symbol,
+					balance: balances[symbol],
+					decimals: 18,
+					type: 'nullnet'
+				};
+			});
+
+			res.json({
+				success: true,
+				data: {
+					chain: 'NullNet',
+					walletAddress,
+					balances: formattedBalances
+				}
+			});
+			return;
+		}
 
 		// Get all supported tokens for the chain
 		const chainTokens = chainUtils.getChainTokens(chainId);
