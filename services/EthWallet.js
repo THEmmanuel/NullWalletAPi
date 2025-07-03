@@ -1,326 +1,252 @@
-const ethers = require('ethers');
-const {
-	Network,
-	Alchemy,
-	Wallet,
-	Utils
-} = require("alchemy-sdk");
-// Importing dotenv to read the API key from the .env file
-const dotenv = require("dotenv");
-dotenv.config();
-
-const {
-	Users
-} = require('../models/user');
-
-
-// Reading the API key and private key from the .env file
-const {
-	API_KEY,
-	PRIVATE_KEY
-} = process.env;
-
-// Configuring the Alchemy SDK
-const settings = {
-	apiKey: API_KEY, // Replace with your API key.
-	network: Network.ETH_SEPOLIA, // Replace with your network.
-};
-
-// Creating an instance of the Alchemy SDK
-const alchemy = new Alchemy(settings);
-
-
-const wallet = ethers.Wallet.createRandom()
+const { ethers } = require("ethers");
+const chains = require('../config/chains');
+const tokens = require('../config/tokens');
 
 const createEthWallet = () => {
-	return {
-		walletName: 'ethereum',
+	const wallet = ethers.Wallet.createRandom()
+	const walletDetails = {
 		walletAddress: wallet.address,
 		walletKey: wallet.privateKey,
 		walletPhrase: wallet.mnemonic.phrase,
+		walletName: "Ethereum Wallet"
 	}
+
+	return walletDetails
 }
 
-const createUSDTWallet = () => {
-	return {
-		walletName: 'usdt',
-		walletAddress: wallet.address,
-		walletKey: wallet.privateKey,
-		walletPhrase: wallet.mnemonic.phrase,
-	}
-}
-
-
-
-// define contract addresses
-const pulsr = '0x3dC961b0bcEBC01088AF48307b3C4Ea2Bfd21D2F'
-
-
-
-
-const sendETH = async (
-	TokenToAddress,
-	TokenAmountToSend,
-	sendersPrivateKey
-) => {
-	const wallet = new Wallet(sendersPrivateKey, alchemy);
-	const toAddress = TokenToAddress;
-
-	// Limit `TokenAmountToSend` to 18 decimal places and convert to string
-	const formattedAmount = parseFloat(TokenAmountToSend).toFixed(18);
-	const amountInWei = ethers.parseUnits(formattedAmount, "ether"); // Convert ETH to wei
-
-	// Fetch gas fee data
-	const feeData = await alchemy.core.getFeeData();
-
-	// Set up ETH transaction details
-	const transaction = {
-		to: toAddress,
-		value: amountInWei,
-		nonce: await alchemy.core.getTransactionCount(wallet.getAddress()),
-		maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-		maxFeePerGas: feeData.maxFeePerGas,
-		type: 2,
-		chainId: 11155111,
-		gasLimit: ethers.parseUnits("21000", "wei"),
-	};
-
-	// Send the ETH transaction
-	const sentTx = await wallet.sendTransaction(transaction);
-	console.log("ETH sent transaction:", sentTx);
-	return sentTx;
+// Initialize all supported chains for a new user
+const initializeUserChains = () => {
+	const supportedChains = [];
+	
+	Object.values(chains).forEach(chain => {
+		if (chain.isEnabled) {
+			supportedChains.push({
+				chainId: chain.id,
+				chainName: chain.name,
+				isEnabled: true,
+				dateAdded: new Date()
+			});
+		}
+	});
+	
+	return supportedChains;
 };
 
-
-const sendERCToken = async (
-	tokenAmountToSend,
-	recieversWalletAddress,
-	tokenToSend,
-	sendersPrivateKey
-) => {
-	const tokenConfig = {
-		usdt: {
-			contractAddress: "0xYourUSDTContractAddress",
-			decimals: 6
-		},
-		usdc: {
-			contractAddress: "0xYourUSDCContractAddress",
-			decimals: 6
-		},
-		pulsar: {
-			contractAddress: "0x3dC961b0bcEBC01088AF48307b3C4Ea2Bfd21D2F",
-			decimals: 18
-		},
-		// Add more tokens as needed
-	};
-
-	const tokenInfo = tokenConfig[tokenToSend.toLowerCase()];
-	if (!tokenInfo) {
-		throw new Error(`Unsupported token: ${tokenToSend}`);
-	}
-
-	console.log(sendersPrivateKey)
-
-	const {
-		contractAddress,
-		decimals
-	} = tokenInfo;
-	const wallet = new Wallet(sendersPrivateKey, alchemy);
-	const toAddress = recieversWalletAddress;
-
-	// Convert tokenAmountToSend to the smallest unit using ethers.js
-	const amountToSendInDecimals = ethers.parseUnits(tokenAmountToSend.toString(), decimals);
-
-	const abi = ["function transfer(address to, uint256 value)"];
-	const iface = new ethers.Interface(abi);
-	const data = iface.encodeFunctionData("transfer", [toAddress, amountToSendInDecimals.toString()]);
-
-	const feeData = await alchemy.core.getFeeData();
-
-	const transaction = {
-		to: contractAddress,
-		nonce: await alchemy.core.getTransactionCount(wallet.getAddress()),
-		maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-		maxFeePerGas: feeData.maxFeePerGas,
-		type: 2,
-		chainId: 11155111,
-		data: data,
-		gasLimit: ethers.parseUnits("250000", "wei"),
-	};
-
-	const sentTx = await wallet.sendTransaction(transaction);
-
-	return sentTx;
+// Initialize all supported tokens for a new user
+const initializeUserTokens = () => {
+	const supportedTokens = [];
+	
+	Object.values(tokens).forEach(token => {
+		const chainData = [];
+		
+		// Add chain-specific data for each chain this token supports
+		Object.keys(token.chains).forEach(chainId => {
+			chainData.push({
+				chainId: chainId,
+				contractAddress: token.chains[chainId].address,
+				decimals: token.chains[chainId].decimals,
+				isEnabled: true
+			});
+		});
+		
+		supportedTokens.push({
+			tokenSymbol: token.symbol,
+			tokenName: token.name,
+			tokenType: token.type,
+			decimals: token.decimals,
+			chainData: chainData,
+			dateAdded: new Date()
+		});
+	});
+	
+	return supportedTokens;
 };
 
+// Initialize token balances for a new user (all set to 0)
+const initializeTokenBalances = () => {
+	const tokenBalances = [];
+	
+	Object.values(tokens).forEach(token => {
+		Object.keys(token.chains).forEach(chainId => {
+			tokenBalances.push({
+				chainId: chainId,
+				tokenSymbol: token.symbol,
+				balance: "0",
+				lastUpdated: new Date()
+			});
+		});
+	});
+	
+	return tokenBalances;
+};
 
+// Helper function to get tokens for a specific chain
+const getTokensForChain = (chainId) => {
+	const chainTokens = [];
+	
+	Object.values(tokens).forEach(token => {
+		if (token.chains[chainId]) {
+			chainTokens.push({
+				symbol: token.symbol,
+				name: token.name,
+				type: token.type,
+				decimals: token.decimals,
+				contractAddress: token.chains[chainId].address,
+				chainDecimals: token.chains[chainId].decimals
+			});
+		}
+	});
+	
+	return chainTokens;
+};
 
 const sendToken = async (
 	amount,
 	receiverWalletAddress,
 	tokenToSend,
-	senderUsername,
-	walletName
+	senderWalletAddress,
+	senderPrivateKey,
+	chainId
 ) => {
 	try {
-		// Fetch the sender from the database
-		const sender = await Users.findOne({
-			username: senderUsername
+		console.log("Attempting to send token with parameters:", {
+			amount,
+			receiverWalletAddress,
+			tokenToSend,
+			senderWalletAddress,
+			chainId
 		});
 
-		if (!sender) {
-			throw new Error('Sender not found');
+		// Validate chain
+		const chain = chains[chainId];
+		if (!chain) {
+			throw new Error(`Unsupported chain: ${chainId}`);
 		}
 
-		// Find the sender's wallet based on the walletName or token
-		const senderWallet = sender.userWallets.find(wallet => wallet.walletName === walletName);
-
-		if (!senderWallet) {
-			throw new Error('Sender wallet not found');
+		// Validate token
+		const token = tokens[tokenToSend.toLowerCase()];
+		if (!token) {
+			throw new Error(`Unsupported token: ${tokenToSend}`);
 		}
 
-		// Extract the sender's private key
-		const sendersPrivateKey = senderWallet.walletKey;
+		// Check if token is supported on this chain
+		const tokenOnChain = token.chains[chainId];
+		if (!tokenOnChain) {
+			throw new Error(`Token ${tokenToSend} is not supported on chain ${chainId}`);
+		}
 
-		let sentTx; // Variable to store the transaction result
+		// Create provider and wallet
+		const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+		const wallet = new ethers.Wallet(senderPrivateKey, provider);
 
-		// Check the token type and call the appropriate function
-		if (tokenToSend.toLowerCase() === 'eth') {
-			sentTx = await sendETH(
-				receiverWalletAddress,
-				amount,
-				sendersPrivateKey
-			);
+		let tx;
+		const amountWei = ethers.parseUnits(amount.toString(), tokenOnChain.decimals);
+
+		if (token.type === 'native' || !tokenOnChain.address) {
+			// Native token transfer
+			tx = await wallet.sendTransaction({
+				to: receiverWalletAddress,
+				value: amountWei
+			});
 		} else {
-			sentTx = await sendERCToken(
-				amount,
-				receiverWalletAddress,
-				tokenToSend,
-				sendersPrivateKey
-			);
-		}
-
-		console.log(`Token sent successfully: ${amount} ${tokenToSend}`);
-		return sentTx; // Return the transaction result
-	} catch (error) {
-		console.error('Error sending token:', error.message);
-		throw error; // Propagate the error to the caller
-	}
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // chainID list
-// sepoliaID = 11155111
-
-// const bnbTestnet = 'BNB_TESTNET';
-// const opBNBTestnet = 'OPBNB-TESTNET';
-// const ethHolesky = 'ETH_HOLESKY';
-// const ethSepolia = 'ETH_SEPOLIA';
-
-// so get balances from rpcs based on this. do for bnb and sepolia first.
-
-// clean up as u go.
-
-
-
-// Define RPC URLs for different chains
-const CHAIN_CONFIG = {
-	"eth-sepolia": {
-		rpcURL: "https://eth-sepolia.g.alchemy.com/v2/Lb-x-7k59fDKNtZUObAxFdloZeIet8HR",
-		nativeToken: "ether",
-	},
-	"bnb-testnet": {
-		rpcURL: "https://bsc-testnet-rpc.publicnode.com",
-		nativeToken: "bnb",
-	},
-	// Add more chains as needed
-};
-
-const getTokenBalance = async (walletAddress, contractAddress, chain) => {
-	console.log(`Fetching balance for address: ${walletAddress}`);
-	console.log(`Using contract address: ${contractAddress}`);
-	console.log(`Chain: ${chain}`);
-
-	// Get chain configuration
-	const chainConfig = CHAIN_CONFIG[chain];
-	if (!chainConfig) {
-		throw new Error(`Unsupported chain: ${chain}`);
-	}
-
-	const {
-		rpcURL,
-		nativeToken
-	} = chainConfig;
-	const provider = new ethers.JsonRpcProvider(rpcURL);
-
-	try {
-		let balance;
-
-		if (contractAddress.toLowerCase() === nativeToken) {
-			console.log(`Fetching native token (${nativeToken}) balance...`);
-			balance = await provider.getBalance(walletAddress);
-			console.log(`Raw native token balance (in wei): ${balance.toString()}`);
-			balance = ethers.formatEther(balance); // Convert to Ether/BNB units
-			console.log(`Formatted native token balance: ${balance}`);
-		} else {
-			console.log(`Fetching ERC20 token balance for contract: ${contractAddress}`);
-			// ERC20 ABI snippet to interact with `balanceOf` and `decimals` methods
-			const ERC20_ABI = [
-				"function balanceOf(address owner) view returns (uint256)",
-				"function decimals() view returns (uint8)",
+			// ERC20 token transfer
+			const abi = [
+				"function transfer(address to, uint256 amount) returns (bool)"
 			];
-			const tokenContract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
-
-			// Fetch balance and token decimals
-			const [rawBalance, decimals] = await Promise.all([
-				tokenContract.balanceOf(walletAddress),
-				tokenContract.decimals(),
-			]);
-			console.log(`Raw token balance: ${rawBalance.toString()}`);
-			console.log(`Token decimals: ${decimals}`);
-
-			// Format balance based on token decimals
-			balance = ethers.formatUnits(rawBalance, decimals);
-			console.log(`Formatted token balance: ${balance}`);
+			const contract = new ethers.Contract(tokenOnChain.address, abi, wallet);
+			tx = await contract.transfer(receiverWalletAddress, amountWei);
 		}
 
-		return balance;
+		console.log("Transaction sent:", tx.hash);
+		
+		return {
+			success: true,
+			hash: tx.hash,
+			from: tx.from,
+			to: receiverWalletAddress,
+			value: amount,
+			chain: chain.name,
+			token: tokenToSend
+		};
+
 	} catch (error) {
-		console.error("Error fetching balance:", error);
-		throw error; // Re-throw to handle it higher up if necessary
+		console.error("Error sending token:", error);
+		throw error;
 	}
 };
 
+const getTokenBalance = async (walletAddress, contractAddress, chainId = 'ethereum') => {
+	try {
+		console.log(`Getting token balance for wallet: ${walletAddress}, contract: ${contractAddress}, chain: ${chainId}`);
 
+		const chain = chains[chainId];
+		if (!chain) {
+			throw new Error(`Unsupported chain: ${chainId}`);
+		}
+
+		const provider = new ethers.JsonRpcProvider(chain.rpcUrl);
+
+		if (!contractAddress || contractAddress === 'null') {
+			// Native token balance
+			const balance = await provider.getBalance(walletAddress);
+			return ethers.formatEther(balance);
+		} else {
+			// ERC20 token balance
+			const abi = [
+				"function balanceOf(address owner) view returns (uint256)"
+			];
+			const contract = new ethers.Contract(contractAddress, abi, provider);
+			const balance = await contract.balanceOf(walletAddress);
+			return ethers.formatUnits(balance, 18); // Assuming 18 decimals, adjust as needed
+		}
+
+	} catch (error) {
+		console.error('Error getting token balance:', error);
+		throw error;
+	}
+};
+
+const getOtherTokenBalances = async (walletAddress, contractAddresses) => {
+	try {
+		console.log(`Getting other token balances for wallet: ${walletAddress}`);
+
+		const provider = new ethers.JsonRpcProvider(process.env.ETH_RPC_URL);
+		const balances = {};
+
+		for (const [tokenSymbol, contractAddress] of Object.entries(contractAddresses)) {
+			try {
+				if (!contractAddress || contractAddress === 'null') {
+					// Skip native tokens as they're handled separately
+					continue;
+				}
+
+				const abi = [
+					"function balanceOf(address owner) view returns (uint256)"
+				];
+				const contract = new ethers.Contract(contractAddress, abi, provider);
+				const balance = await contract.balanceOf(walletAddress);
+				balances[tokenSymbol] = ethers.formatUnits(balance, 18);
+			} catch (error) {
+				console.error(`Error getting balance for ${tokenSymbol}:`, error);
+				balances[tokenSymbol] = '0';
+			}
+		}
+
+		return balances;
+
+	} catch (error) {
+		console.error('Error getting other token balances:', error);
+		throw error;
+	}
+};
 
 module.exports = {
 	createEthWallet,
-	createUSDTWallet,
+	initializeUserChains,
+	initializeUserTokens,
+	initializeTokenBalances,
+	getTokensForChain,
 	sendToken,
 	getTokenBalance,
+	getOtherTokenBalances
 };
-
-
-// // Example usage:
-// const walletAddress = "0x00000000219ab540356cbb839cbe05303d7705fa";
-// const contractAddress = "ether"; // Use "ether" to get Ether balance, or provide a contract address for token balance
-
-// getTokenBalance(walletAddress, contractAddress)
-// .then(balance => console.log(`Balance: ${balance}`))
-// .catch(console.error);

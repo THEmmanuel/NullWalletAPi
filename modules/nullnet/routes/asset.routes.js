@@ -12,29 +12,16 @@ router.get('/health', (req, res) => {
 });
 
 // List all assets
-router.get('/all', async (req, res) => {
-    try {
-        const assets = await assetController.listAllAssets();
-        res.json({
-            success: true,
-            data: assets
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
+router.get('/all', assetController.listAssets.bind(assetController));
 
 // Asset management routes
-router.post('/', assetController.createAsset);
-router.get('/', assetController.listAssets);
-router.get('/:ticker', assetController.getAsset);
-router.patch('/:ticker/price', assetController.updateAssetPrice);
+router.post('/', assetController.createAsset.bind(assetController));
+router.get('/', assetController.listAssets.bind(assetController));
+router.get('/:ticker', assetController.getAsset.bind(assetController));
+router.patch('/:ticker/price', assetController.updateAssetPrice.bind(assetController));
 
 // Trading routes
-router.post('/:walletAddress/buy', assetController.buyAsset);
-router.post('/:walletAddress/sell', assetController.sellAsset);
+router.post('/:walletAddress/buy', assetController.buyAsset.bind(assetController));
+router.post('/:walletAddress/sell', assetController.sellAsset.bind(assetController));
 
 module.exports = router; 

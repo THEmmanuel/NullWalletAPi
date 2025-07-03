@@ -5,7 +5,13 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Users } = require('../models/user');
 const rateLimit = require('express-rate-limit');
-const { createEthWallet } = require('../services/EthWallet');
+const { 
+    createEthWallet, 
+    initializeUserChains, 
+    initializeUserTokens, 
+    initializeTokenBalances 
+} = require('../services/EthWallet');
+const { generateWalletAddress } = require('../modules/nullnet/utils/wallet');
 
 // Rate limiters
 const loginLimiter = rateLimit({
@@ -42,6 +48,20 @@ const generateTokens = (userId) => {
     return { accessToken, refreshToken };
 };
 
+// Helper function to create nullnet wallet
+const createNullNetWallet = async () => {
+    // Use the specific address if you want, or generate a new one
+    // const walletAddress = 'null_3he83rds393erfr3'; // Fixed address as requested
+    const walletAddress = await generateWalletAddress(); // Or generate a unique one
+    
+    return {
+        walletName: "NullNet Wallet",
+        walletAddress: walletAddress,
+        walletKey: null, // NullNet doesn't use private keys like Ethereum
+        walletPhrase: null // NullNet doesn't use mnemonic phrases
+    };
+};
+
 // Signup routes
 router.post('/signup', async (req, res) => {
     try {
@@ -70,6 +90,14 @@ router.post('/signup', async (req, res) => {
             // Create ETH wallet
             const ethWallet = createEthWallet();
             
+            // Create NullNet wallet
+            const nullNetWallet = await createNullNetWallet();
+            
+            // Initialize all supported chains and tokens
+            const supportedChains = initializeUserChains();
+            const supportedTokens = initializeUserTokens();
+            const tokenBalances = initializeTokenBalances();
+            
             const user = new Users({
                 email,
                 password: hashedPassword,
@@ -77,7 +105,10 @@ router.post('/signup', async (req, res) => {
                 userID: Date.now().toString(),
                 isEmailVerified: false,
                 username: `user_${Date.now()}`,
-                userWallets: [ethWallet],
+                userWallets: [ethWallet, nullNetWallet],
+                supportedChains,
+                supportedTokens,
+                tokenBalances,
                 currentChain: 'ethereum'
             });
 
@@ -103,6 +134,14 @@ router.post('/signup', async (req, res) => {
             // Create ETH wallet
             const ethWallet = createEthWallet();
             
+            // Create NullNet wallet
+            const nullNetWallet = await createNullNetWallet();
+            
+            // Initialize all supported chains and tokens
+            const supportedChains = initializeUserChains();
+            const supportedTokens = initializeUserTokens();
+            const tokenBalances = initializeTokenBalances();
+            
             const user = new Users({
                 email: email || null,
                 authMethod: 'token',
@@ -110,7 +149,10 @@ router.post('/signup', async (req, res) => {
                 token: hashedToken,
                 isEmailVerified: email ? false : true,
                 username: `user_${Date.now()}`,
-                userWallets: [ethWallet],
+                userWallets: [ethWallet, nullNetWallet],
+                supportedChains,
+                supportedTokens,
+                tokenBalances,
                 currentChain: 'ethereum'
             });
 
@@ -386,4 +428,4 @@ router.post('/verify-token-recovery', async (req, res) => {
     }
 });
 
-module.exports = router; 
+module.exports = router;

@@ -1,40 +1,40 @@
 const axios = require('axios');
 
-const BASE_URL = 'http://localhost:3000'; // Adjust port as needed
+const BASE_URL = 'http://localhost:4444'; // Adjust port as needed
 
 async function setupNullNet() {
     console.log('🔧 Setting up NullNet with sample data...\n');
 
     try {
-        // Create sample assets
+        // Create sample assets with proper USD values
         console.log('📦 Creating sample assets...');
         const sampleAssets = [
             {
                 ticker: 'GOLD',
                 name: 'Gold Coin',
                 type: 'free',
-                price: 100.0,
+                price: 1950.50,
                 creatorId: 'system'
             },
             {
                 ticker: 'SILVER',
                 name: 'Silver Coin',
                 type: 'free',
-                price: 50.0,
+                price: 24.75,
                 creatorId: 'system'
             },
             {
                 ticker: 'PLATINUM',
                 name: 'Platinum Coin',
                 type: 'free',
-                price: 200.0,
+                price: 920.00,
                 creatorId: 'system'
             },
             {
                 ticker: 'DIAMOND',
                 name: 'Diamond Coin',
                 type: 'free',
-                price: 500.0,
+                price: 5000.00,
                 creatorId: 'system'
             }
         ];

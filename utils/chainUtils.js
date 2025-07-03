@@ -35,7 +35,22 @@ const chainUtils = {
     getChainTokens: (chainId) => {
         const chain = chains[chainId];
         if (!chain) return [];
-        return chain.tokens.map(symbol => tokens[symbol.toLowerCase()]);
+        
+        return chain.tokens.map(symbol => {
+            const token = tokens[symbol.toLowerCase()];
+            if (!token || !token.chains[chainId]) return null;
+            
+            // Return a combined object with token info and chain-specific data
+            return {
+                symbol: token.symbol,
+                name: token.name,
+                type: token.type,
+                decimals: token.chains[chainId].decimals, // Use chain-specific decimals
+                address: token.chains[chainId].address,
+                // Keep the global decimals as a fallback
+                globalDecimals: token.decimals
+            };
+        }).filter(token => token !== null);
     },
 
     // Validate chain and token combination

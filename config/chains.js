@@ -3,7 +3,7 @@ const chains = {
         id: 'ethereum',
         name: 'Ethereum',
         network: 'mainnet',
-        rpcUrl: process.env.ETH_RPC_URL,
+        rpcUrl: process.env.ETH_RPC_URL || 'https://eth-mainnet.public.blastapi.io',
         chainId: 1,
         nativeCurrency: {
             name: 'Ether',
@@ -18,11 +18,11 @@ const chains = {
         id: 'sepolia',
         name: 'Sepolia',
         network: 'testnet',
-        rpcUrl: process.env.SEPOLIA_RPC_URL,
+        rpcUrl: process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
         chainId: 11155111,
         nativeCurrency: {
             name: 'Sepolia Ether',
-            symbol: 'SEP',
+            symbol: 'ETH',
             decimals: 18
         },
         blockExplorer: 'https://sepolia.etherscan.io',
@@ -33,7 +33,7 @@ const chains = {
         id: 'polygon',
         name: 'Polygon',
         network: 'mainnet',
-        rpcUrl: process.env.POLYGON_RPC_URL,
+        rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
         chainId: 137,
         nativeCurrency: {
             name: 'Matic',
@@ -48,7 +48,7 @@ const chains = {
         id: 'mumbai',
         name: 'Mumbai',
         network: 'testnet',
-        rpcUrl: process.env.MUMBAI_RPC_URL,
+        rpcUrl: process.env.MUMBAI_RPC_URL || 'https://polygon-mumbai-bor-rpc.publicnode.com',
         chainId: 80001,
         nativeCurrency: {
             name: 'Mumbai Matic',
@@ -102,6 +102,21 @@ const chains = {
         },
         blockExplorer: null, // NullNet doesn't have a block explorer yet
         tokens: ['gold', 'silver', 'platinum', 'diamond'], // Example NullNet assets
+        isEnabled: true
+    },
+    flowTestnet: {
+        id: 'flowTestnet',
+        name: 'Flow EVM Testnet',
+        network: 'testnet',
+        rpcUrl: process.env.FLOW_TESTNET_RPC_URL || 'https://testnet.evm.nodes.onflow.org',
+        chainId: 545,
+        nativeCurrency: {
+            name: 'Flow',
+            symbol: 'FLOW',
+            decimals: 18
+        },
+        blockExplorer: 'https://evm-testnet.flowscan.io',
+        tokens: ['flow', 'usdt', 'usdc'],
         isEnabled: true
     }
 };

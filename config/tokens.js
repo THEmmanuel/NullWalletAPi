@@ -47,6 +47,18 @@ const tokens = {
             }
         }
     },
+    flow: {
+        symbol: 'FLOW',
+        name: 'Flow',
+        decimals: 18,
+        type: 'native',
+        chains: {
+            flowTestnet: {
+                address: null, // Native token
+                decimals: 18
+            }
+        }
+    },
     usdt: {
         symbol: 'USDT',
         name: 'Tether USD',
@@ -76,6 +88,10 @@ const tokens = {
             bscTestnet: {
                 address: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd',
                 decimals: 18
+            },
+            flowTestnet: {
+                address: '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Example address - replace with actual Flow EVM Testnet USDT address
+                decimals: 6
             }
         }
     },
@@ -127,6 +143,10 @@ const tokens = {
             },
             mumbai: {
                 address: '0xe6b8a5CF854791412c1f6EFC7CAf629f5Df1c747',
+                decimals: 6
+            },
+            flowTestnet: {
+                address: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', // Example address - replace with actual Flow EVM Testnet USDC address
                 decimals: 6
             }
         }

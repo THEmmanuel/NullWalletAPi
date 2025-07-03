@@ -20,6 +20,20 @@ class WalletService {
         return await this.walletRepository.create(walletData);
     }
 
+    // Create wallet with specific address (for migration)
+    async createWalletWithAddress(walletAddress, userId) {
+        const walletData = {
+            walletAddress,
+            userId,
+            balances: {},
+            fiat: {},
+            createdAt: new Date(),
+            lastActive: new Date()
+        };
+
+        return await this.walletRepository.create(walletData);
+    }
+
     async getWallet(walletAddress) {
         return await this.walletRepository.findByAddress(walletAddress);
     }
