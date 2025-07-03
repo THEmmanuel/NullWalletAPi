@@ -58,6 +58,12 @@ app.get("/", (req, res) => {
 	res.send("Null Wallet API");
 });
 
-app.listen(PORT, () => {
-	console.log(`Null Wallet Server listening on port ${PORT}`);
-});
+// Only listen on a port if we're not in a serverless environment
+if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+	app.listen(PORT, () => {
+		console.log(`Null Wallet Server listening on port ${PORT}`);
+	});
+}
+
+// Export the app for Vercel
+module.exports = app;
