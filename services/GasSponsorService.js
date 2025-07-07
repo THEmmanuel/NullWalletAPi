@@ -76,6 +76,7 @@ class GasSponsorService {
     async executeSponsoredTransaction(txHash, data) {
         try {
             console.log(`[GasSponsorService] Executing sponsored transaction: ${txHash}`);
+            console.log(`[GasSponsorService] Transaction data: ${data}`);
             
             const tx = await this.contract.executeSponsoredTransaction(txHash, data);
             const receipt = await tx.wait();

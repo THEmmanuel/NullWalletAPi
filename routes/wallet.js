@@ -622,6 +622,16 @@ router.post('/send-token-sponsored', async (req, res) => {
 			});
 		}
 
+		// Check if the token supports gas sponsorship (currently only ERC20 tokens)
+		const token = tokens[tokenToSend.toLowerCase()];
+		if (token && (token.type === 'native' || !token.chains[chainId]?.address)) {
+			return res.status(400).json({
+				success: false,
+				error: 'Gas sponsorship not supported for native tokens',
+				details: `Gas sponsorship is currently only supported for ERC20 tokens on Flow testnet`
+			});
+		}
+
 		let result;
 		
 		if (chainId === 'flowTestnet') {

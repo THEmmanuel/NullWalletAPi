@@ -277,19 +277,10 @@ class FlowService {
                 gasPrice = feeData.gasPrice;
                 gasLimit = 21000; // Standard transfer gas limit
                 
-                // Create transaction object
-                const transaction = {
-                    to: receiverWalletAddress,
-                    value: amountWei,
-                    nonce: nonce,
-                    gasPrice: gasPrice,
-                    gasLimit: gasLimit,
-                    chainId: 545, // Flow testnet chain ID
-                    type: 0 // Legacy transaction type
-                };
-
-                // Encode transaction data for sponsorship
-                transactionData = ethers.serializeTransaction(transaction);
+                // For native token transfers, we need to encode the transaction data
+                // The GasSponsor contract will make a call to the recipient with the value
+                // We need to encode the transaction data that includes the value
+                transactionData = '0x'; // Empty data for native transfers
                 
             } else {
                 // ERC20 token transfer
@@ -313,10 +304,17 @@ class FlowService {
 
             console.log('[FlowService] Sponsoring transaction...');
             
-            // Sponsor the transaction
+            // For now, let's use the regular transaction method for native tokens
+            // since the GasSponsor contract doesn't support value transfers
+            if (token.type === 'native' || !tokenOnChain.address) {
+                console.log('[FlowService] Native token detected, using regular transaction method');
+                return await this.sendTransaction(params);
+            }
+
+            // Sponsor the transaction (only for ERC20 tokens)
             const sponsorshipResult = await gasSponsorService.sponsorTransaction(
                 senderWallet.address,
-                token.type === 'native' || !tokenOnChain.address ? receiverWalletAddress : tokenOnChain.address,
+                tokenOnChain.address,
                 gasLimit,
                 gasPrice
             );
