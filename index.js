@@ -30,9 +30,28 @@ app.use(bodyParser.urlencoded({
 app.use(bodyParser.json());
 
 // Configure CORS to allow frontend requests
+const allowedOrigins = [
+	'http://localhost:3000',
+	'https://www.nullwallet.io',
+	'https://nullwallet.io',
+	process.env.FRONTEND_URL
+].filter(Boolean); // Remove any undefined values
+
 app.use(cors({
-	origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-	credentials: true
+	origin: function (origin, callback) {
+		// Allow requests with no origin (like mobile apps or curl requests)
+		if (!origin) return callback(null, true);
+		
+		if (allowedOrigins.indexOf(origin) !== -1) {
+			callback(null, true);
+		} else {
+			console.log('CORS blocked origin:', origin);
+			callback(new Error('Not allowed by CORS'));
+		}
+	},
+	credentials: true,
+	methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 mongoose.connect(MONGO_URI, {
@@ -43,6 +62,9 @@ mongoose.connect(MONGO_URI, {
 	.catch(err => console.log(err))
 
 app.use(express.json()); // Middleware to parse JSON request bodies
+
+// Handle preflight requests
+app.options('*', cors());
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
