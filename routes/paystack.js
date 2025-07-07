@@ -3,10 +3,100 @@ const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
 
+/**
+ * @swagger
+ * tags:
+ *   name: Paystack
+ *   description: Payment processing with Paystack integration
+ */
+
 // Paystack Secret Key - should be in .env file
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || 'sk_test_YOUR_SECRET_KEY';
 const PAYSTACK_BASE_URL = 'https://api.paystack.co';
 
+/**
+ * @swagger
+ * /api/paystack/initialize:
+ *   post:
+ *     summary: Initialize Paystack payment
+ *     tags: [Paystack]
+ *     description: Initialize a new payment transaction with Paystack
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *               - email
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 description: Payment amount in Naira
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Customer email address
+ *               metadata:
+ *                 type: object
+ *                 description: Additional transaction metadata
+ *             example:
+ *               amount: 5000
+ *               email: "customer@example.com"
+ *               metadata:
+ *                 userId: "12345"
+ *                 purpose: "wallet_funding"
+ *     responses:
+ *       200:
+ *         description: Payment initialized successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     authorization_url:
+ *                       type: string
+ *                       description: URL for payment authorization
+ *                     access_code:
+ *                       type: string
+ *                       description: Access code for payment
+ *                     reference:
+ *                       type: string
+ *                       description: Unique transaction reference
+ *       400:
+ *         description: Bad request - missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to initialize payment
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 // Initialize transaction
 router.post('/initialize', async (req, res) => {
   try {
@@ -79,6 +169,97 @@ router.post('/initialize', async (req, res) => {
 const verificationCache = new Map();
 const CACHE_DURATION = 30000; // 30 seconds
 
+/**
+ * @swagger
+ * /api/paystack/verify/{reference}:
+ *   get:
+ *     summary: Verify Paystack transaction
+ *     tags: [Paystack]
+ *     description: Verify the status of a payment transaction using the reference
+ *     parameters:
+ *       - in: path
+ *         name: reference
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Transaction reference from Paystack
+ *     responses:
+ *       200:
+ *         description: Transaction verification result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   description: Whether the transaction was successful
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reference:
+ *                       type: string
+ *                       description: Transaction reference
+ *                     amount:
+ *                       type: number
+ *                       description: Transaction amount in Naira
+ *                     currency:
+ *                       type: string
+ *                       description: Currency code
+ *                     status:
+ *                       type: string
+ *                       enum: [success, failed, abandoned, cancelled, pending]
+ *                       description: Transaction status
+ *                     paidAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Payment timestamp
+ *                     channel:
+ *                       type: string
+ *                       description: Payment channel used
+ *                     customerEmail:
+ *                       type: string
+ *                       format: email
+ *                       description: Customer email
+ *                     metadata:
+ *                       type: object
+ *                       description: Transaction metadata
+ *                     gateway_response:
+ *                       type: string
+ *                       description: Gateway response message
+ *                     message:
+ *                       type: string
+ *                       description: Transaction message
+ *                 error:
+ *                   type: string
+ *                   description: Error message (if transaction failed)
+ *       400:
+ *         description: Bad request - missing reference
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to verify payment
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 // Verify transaction
 router.get('/verify/:reference', async (req, res) => {
   try {

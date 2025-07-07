@@ -90,7 +90,7 @@ const tokens = {
                 decimals: 18
             },
             flowTestnet: {
-                address: '0x5FbDB2315678afecb367f032d93F642f64180aa3', // Example address - replace with actual Flow EVM Testnet USDT address
+                address: null, // USDT not yet deployed on Flow EVM Testnet
                 decimals: 6
             }
         }
@@ -146,7 +146,7 @@ const tokens = {
                 decimals: 6
             },
             flowTestnet: {
-                address: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512', // Example address - replace with actual Flow EVM Testnet USDC address
+                address: null, // USDC not yet deployed on Flow EVM Testnet
                 decimals: 6
             }
         }
@@ -218,4 +218,4 @@ const tokens = {
     }
 };
 
-module.exports = tokens; 
+module.exports = tokens;

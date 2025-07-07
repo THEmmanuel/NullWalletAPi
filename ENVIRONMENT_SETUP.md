@@ -14,6 +14,10 @@ PORT=4444
 # Frontend URL for CORS
 FRONTEND_URL=http://localhost:3000
 
+# JWT Secrets (REQUIRED for authentication)
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_REFRESH_SECRET=your-super-secret-jwt-refresh-key-change-this-in-production
+
 # Etherscan API key (required for Ethereum/Sepolia transactions)
 ETHERSCAN_KEY=your_etherscan_api_key
 
@@ -66,6 +70,23 @@ FLOWSCAN_API_KEY=your_flowscan_api_key
 ```
 
 ## Getting API Keys
+
+### JWT Secrets (REQUIRED for Authentication)
+**CRITICAL**: You must set these environment variables for authentication to work:
+- `JWT_SECRET`: A secure random string for signing access tokens
+- `JWT_REFRESH_SECRET`: A secure random string for signing refresh tokens
+
+**Generate secure secrets:**
+```bash
+# Generate a secure JWT secret (run this in terminal)
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+```
+
+**Example:**
+```bash
+JWT_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t6u7v8w9x0y1z2
+JWT_REFRESH_SECRET=b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2g3h4i5j6k7l8m9n0o1p2q3r4s5t6u7v8w9x0y1z2a3
+```
 
 1. **Etherscan API Key** (Required for Ethereum transactions): 
    - Sign up at https://etherscan.io/apis

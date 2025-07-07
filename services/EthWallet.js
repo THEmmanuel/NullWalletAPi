@@ -192,12 +192,33 @@ const getTokenBalance = async (walletAddress, contractAddress, chainId = 'ethere
 			return ethers.formatEther(balance);
 		} else {
 			// ERC20 token balance
-			const abi = [
-				"function balanceOf(address owner) view returns (uint256)"
-			];
-			const contract = new ethers.Contract(contractAddress, abi, provider);
-			const balance = await contract.balanceOf(walletAddress);
-			return ethers.formatUnits(balance, 18); // Assuming 18 decimals, adjust as needed
+			try {
+				const abi = [
+					"function balanceOf(address owner) view returns (uint256)"
+				];
+				const contract = new ethers.Contract(contractAddress, abi, provider);
+				
+				// Check if contract exists at the address
+				const code = await provider.getCode(contractAddress);
+				if (code === '0x') {
+					console.warn(`No contract found at address: ${contractAddress}`);
+					return '0'; // Return 0 balance if contract doesn't exist
+				}
+				
+				const balance = await contract.balanceOf(walletAddress);
+				return ethers.formatUnits(balance, 18); // Assuming 18 decimals, adjust as needed
+			} catch (contractError) {
+				console.error(`Contract error for address ${contractAddress}:`, contractError);
+				
+				// Check if it's a contract call error
+				if (contractError.code === 'CALL_EXCEPTION' || contractError.reason === 'require(false)') {
+					console.warn(`Contract call failed for ${contractAddress}, returning 0 balance`);
+					return '0'; // Return 0 balance for failed contract calls
+				}
+				
+				// Re-throw other errors
+				throw contractError;
+			}
 		}
 
 	} catch (error) {
@@ -220,6 +241,14 @@ const getOtherTokenBalances = async (walletAddress, contractAddresses) => {
 					continue;
 				}
 
+				// Check if contract exists at the address
+				const code = await provider.getCode(contractAddress);
+				if (code === '0x') {
+					console.warn(`No contract found at address: ${contractAddress} for ${tokenSymbol}`);
+					balances[tokenSymbol] = '0';
+					continue;
+				}
+
 				const abi = [
 					"function balanceOf(address owner) view returns (uint256)"
 				];
@@ -228,7 +257,15 @@ const getOtherTokenBalances = async (walletAddress, contractAddresses) => {
 				balances[tokenSymbol] = ethers.formatUnits(balance, 18);
 			} catch (error) {
 				console.error(`Error getting balance for ${tokenSymbol}:`, error);
-				balances[tokenSymbol] = '0';
+				
+				// Check if it's a contract call error
+				if (error.code === 'CALL_EXCEPTION' || error.reason === 'require(false)') {
+					console.warn(`Contract call failed for ${tokenSymbol} at ${contractAddress}, setting balance to 0`);
+					balances[tokenSymbol] = '0';
+				} else {
+					// For other errors, still set to 0 but log the error
+					balances[tokenSymbol] = '0';
+				}
 			}
 		}
 

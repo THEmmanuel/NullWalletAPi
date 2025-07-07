@@ -8,6 +8,13 @@ const { Users } = require('../models/user');
 const { NullNetService } = require('../utils/NullNetService');
 const FlowService = require('../services/FlowService');
 
+/**
+ * @swagger
+ * tags:
+ *   name: Wallet
+ *   description: Wallet management and cryptocurrency operations
+ */
+
 // Import from services/EthWallet.js instead of utils/ETHWallet.js
 const {
 	getTokenBalance,
@@ -45,6 +52,35 @@ try {
 	flowService = null;
 }
 
+/**
+ * @swagger
+ * /wallet:
+ *   get:
+ *     summary: Get wallet API status
+ *     tags: [Wallet]
+ *     description: Check the status of wallet services and API availability
+ *     responses:
+ *       200:
+ *         description: Wallet API status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Wallet actions API"
+ *                 status:
+ *                   type: string
+ *                   example: "ok"
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 nullNetService:
+ *                   type: string
+ *                   enum: [available, unavailable]
+ *                   description: Status of NullNet service
+ */
 router.get('/', (req, res) => {
 	res.json({
 		message: 'Wallet actions API',
@@ -54,6 +90,55 @@ router.get('/', (req, res) => {
 	})
 });
 
+/**
+ * @swagger
+ * /wallet/get-token-balance/{walletAddress}/{contractAddress}/{chain}:
+ *   get:
+ *     summary: Get token balance for a wallet
+ *     tags: [Wallet]
+ *     description: Retrieve the balance of a specific token for a wallet address on a given blockchain
+ *     parameters:
+ *       - in: path
+ *         name: walletAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Wallet address to check balance for
+ *       - in: path
+ *         name: contractAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token contract address
+ *       - in: path
+ *         name: chain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Blockchain network (ethereum, polygon, bsc, nullnet, etc.)
+ *     responses:
+ *       200:
+ *         description: Token balance retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 balance:
+ *                   type: string
+ *                   description: Token balance as string
+ *       500:
+ *         description: Failed to fetch token balance
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 router.get('/get-token-balance/:walletAddress/:contractAddress/:chain', async (req, res) => {
 	const {
 		walletAddress,
@@ -87,6 +172,66 @@ router.get('/get-token-balance/:walletAddress/:contractAddress/:chain', async (r
 	}
 });
 
+/**
+ * @swagger
+ * /wallet/get-token-usd-balance/{walletAddress}/{contractAddress}/{token}/{chain}:
+ *   get:
+ *     summary: Get token balance in USD
+ *     tags: [Wallet]
+ *     description: Retrieve the balance of a specific token and convert it to USD value using current market prices
+ *     parameters:
+ *       - in: path
+ *         name: walletAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Wallet address to check balance for
+ *       - in: path
+ *         name: contractAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token contract address
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token symbol (e.g., ETH, USDC, PULSAR)
+ *       - in: path
+ *         name: chain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Blockchain network
+ *     responses:
+ *       200:
+ *         description: Token USD balance retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TokenBalance'
+ *       404:
+ *         description: Token price not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to fetch token USD balance
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 // token param exists solely so the price can be fetched from coingecko and fallbacks.
 router.get('/get-token-usd-balance/:walletAddress/:contractAddress/:token/:chain', async (req, res) => {
 	const {
@@ -102,8 +247,16 @@ router.get('/get-token-usd-balance/:walletAddress/:contractAddress/:token/:chain
 
 	try {
 		// First, get the token balance
-		const balance = await getTokenBalance(walletAddress, contractAddress, chain);
-		console.log(`Token balance retrieved: ${balance}`);
+		let balance;
+		try {
+			balance = await getTokenBalance(walletAddress, contractAddress, chain);
+			console.log(`Token balance retrieved: ${balance}`);
+		} catch (balanceError) {
+			console.error('Error getting token balance:', balanceError);
+			// If balance retrieval fails, set balance to 0 and continue
+			balance = 0;
+			console.log('Setting balance to 0 due to error');
+		}
 
 
 		// Fixed price for PULSAR token
@@ -170,6 +323,41 @@ router.get('/get-token-usd-balance/:walletAddress/:contractAddress/:token/:chain
 
 
 
+/**
+ * @swagger
+ * /wallet/get-token-price/{token}:
+ *   get:
+ *     summary: Get current token price
+ *     tags: [Wallet]
+ *     description: Fetch the current market price of a token in USD
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token symbol (e.g., bitcoin, ethereum, usd-coin)
+ *     responses:
+ *       200:
+ *         description: Token price retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: number
+ *                   description: Current token price in USD
+ *       404:
+ *         description: Token price not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
 // Define a GET route to fetch token prices
 router.get('/get-token-price/:token', async (req, res) => {
 	const token = req.params.token.toLowerCase(); // Handle case sensitivity
@@ -188,6 +376,99 @@ router.get('/get-token-price/:token', async (req, res) => {
 
 
 
+/**
+ * @swagger
+ * /wallet/send-token:
+ *   post:
+ *     summary: Send tokens to another wallet
+ *     tags: [Wallet]
+ *     description: Transfer tokens from one wallet to another on the specified blockchain
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *               - receiverWalletAddress
+ *               - tokenToSend
+ *               - senderWalletAddress
+ *               - senderPrivateKey
+ *               - chainId
+ *             properties:
+ *               amount:
+ *                 type: number
+ *                 description: Amount of tokens to send
+ *               receiverWalletAddress:
+ *                 type: string
+ *                 description: Recipient wallet address
+ *               tokenToSend:
+ *                 type: string
+ *                 description: Token symbol to send
+ *               senderWalletAddress:
+ *                 type: string
+ *                 description: Sender wallet address
+ *               senderPrivateKey:
+ *                 type: string
+ *                 description: Sender's private key (encrypted)
+ *               chainId:
+ *                 type: string
+ *                 description: Blockchain network ID
+ *             example:
+ *               amount: 0.1
+ *               receiverWalletAddress: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+ *               tokenToSend: "ETH"
+ *               senderWalletAddress: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+ *               senderPrivateKey: "encrypted_private_key"
+ *               chainId: "ethereum"
+ *     responses:
+ *       200:
+ *         description: Token sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   description: Success message with transaction details
+ *                 data:
+ *                   type: object
+ *                   description: Transaction result data
+ *       400:
+ *         description: Bad request - missing or invalid fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ *       500:
+ *         description: Failed to send token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
+// Regular token send route
 router.post('/send-token', async (req, res) => {
 	const {
 		amount,
@@ -195,7 +476,8 @@ router.post('/send-token', async (req, res) => {
 		tokenToSend,
 		senderWalletAddress,
 		senderPrivateKey,
-		chainId
+		chainId,
+		useGasSponsorship = false
 	} = req.body;
 
 	console.log('--- /wallet/send-token called ---');
@@ -234,7 +516,7 @@ router.post('/send-token', async (req, res) => {
 				chainId
 			);
 		} else if (chainId === 'flowTestnet') {
-			console.log('Flow testnet transaction detected. Calling flowService.sendTransaction...');
+			console.log('Flow testnet transaction detected.');
 			if (!flowService) {
 				console.log('Flow service unavailable');
 				return res.status(503).json({
@@ -243,14 +525,27 @@ router.post('/send-token', async (req, res) => {
 				});
 			}
 			try {
-				result = await flowService.sendTransaction({
-					amount,
-					receiverWalletAddress,
-					tokenToSend,
-					senderWalletAddress,
-					senderPrivateKey,
-					chainId
-				});
+				if (useGasSponsorship) {
+					console.log('Using gas sponsorship for Flow transaction...');
+					result = await flowService.sendTransactionWithGasSponsorship({
+						amount,
+						receiverWalletAddress,
+						tokenToSend,
+						senderWalletAddress,
+						senderPrivateKey,
+						chainId
+					});
+				} else {
+					console.log('Using regular Flow transaction...');
+					result = await flowService.sendTransaction({
+						amount,
+						receiverWalletAddress,
+						tokenToSend,
+						senderWalletAddress,
+						senderPrivateKey,
+						chainId
+					});
+				}
 				console.log('FlowService result:', result);
 			} catch (err) {
 				console.error('Error from FlowService:', err);
@@ -270,7 +565,7 @@ router.post('/send-token', async (req, res) => {
 		console.log('Send-token result:', result);
 		res.status(200).json({
 			success: true,
-			message: `Token ${tokenToSend} sent to ${receiverWalletAddress} on ${result.chain}`,
+			message: `Token ${tokenToSend} sent to ${receiverWalletAddress} on ${result.chain}${result.gasSponsored ? ' with gas sponsorship' : ''}`,
 			data: result
 		});
 	} catch (error) {
@@ -283,6 +578,181 @@ router.post('/send-token', async (req, res) => {
 	}
 });
 
+// Gas-sponsored token send route
+router.post('/send-token-sponsored', async (req, res) => {
+	const {
+		amount,
+		receiverWalletAddress,
+		tokenToSend,
+		senderWalletAddress,
+		senderPrivateKey,
+		chainId
+	} = req.body;
+
+	console.log('--- /wallet/send-token-sponsored called ---');
+	console.log('Request body:', req.body);
+
+	try {
+		// Validate required fields
+		if (!amount || !receiverWalletAddress || !tokenToSend || !senderWalletAddress || !senderPrivateKey || !chainId) {
+			console.log('Missing required fields:', { amount, receiverWalletAddress, tokenToSend, senderWalletAddress, senderPrivateKey: !!senderPrivateKey, chainId });
+			return res.status(400).json({
+				success: false,
+				error: 'Missing required fields',
+				details: 'All fields are required: amount, receiverWalletAddress, tokenToSend, senderWalletAddress, senderPrivateKey, chainId'
+			});
+		}
+
+		// Validate amount
+		if (isNaN(amount) || amount <= 0) {
+			console.log('Invalid amount:', amount);
+			return res.status(400).json({
+				success: false,
+				error: 'Invalid amount',
+				details: 'Amount must be a positive number'
+			});
+		}
+
+		// Check if gas sponsorship is supported for this chain
+		if (chainId !== 'flowTestnet') {
+			return res.status(400).json({
+				success: false,
+				error: 'Gas sponsorship not supported',
+				details: `Gas sponsorship is currently only supported on Flow testnet`
+			});
+		}
+
+		let result;
+		
+		if (chainId === 'flowTestnet') {
+			console.log('Flow testnet gas-sponsored transaction detected.');
+			if (!flowService) {
+				console.log('Flow service unavailable');
+				return res.status(503).json({
+					success: false,
+					error: 'Flow service unavailable'
+				});
+			}
+			try {
+				result = await flowService.sendTransactionWithGasSponsorship({
+					amount,
+					receiverWalletAddress,
+					tokenToSend,
+					senderWalletAddress,
+					senderPrivateKey,
+					chainId
+				});
+				console.log('FlowService gas-sponsored result:', result);
+			} catch (err) {
+				console.error('Error from FlowService gas sponsorship:', err);
+				throw err;
+			}
+		} else {
+			return res.status(400).json({
+				success: false,
+				error: 'Unsupported chain for gas sponsorship',
+				details: `Chain ${chainId} does not support gas sponsorship`
+			});
+		}
+
+		console.log('Gas-sponsored send-token result:', result);
+		res.status(200).json({
+			success: true,
+			message: `Token ${tokenToSend} sent to ${receiverWalletAddress} on ${result.chain} with gas sponsorship`,
+			data: result
+		});
+	} catch (error) {
+		console.error('Error sending gas-sponsored token:', error);
+		res.status(500).json({
+			success: false,
+			error: 'Failed to send gas-sponsored token',
+			details: error.message
+		});
+	}
+});
+
+/**
+ * @swagger
+ * /wallet/balance/{chainId}/{walletAddress}:
+ *   get:
+ *     summary: Get native token balance
+ *     tags: [Wallet]
+ *     description: Get the balance of the native token (ETH, MATIC, BNB, etc.) for a wallet on a specific blockchain
+ *     parameters:
+ *       - in: path
+ *         name: chainId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Blockchain network ID (ethereum, polygon, bsc, nullnet, etc.)
+ *       - in: path
+ *         name: walletAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Wallet address to check balance for
+ *     responses:
+ *       200:
+ *         description: Native token balance retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 balance:
+ *                   type: string
+ *                   description: Balance in wei or smallest unit
+ *                 chain:
+ *                   type: string
+ *                   description: Chain name
+ *                 walletAddress:
+ *                   type: string
+ *                   description: Wallet address
+ *                 source:
+ *                   type: string
+ *                   description: Data source (optional, e.g., "etherscan")
+ *       400:
+ *         description: Unsupported chain
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *       503:
+ *         description: Service unavailable
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to get balance
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 // Get wallet balance for native token on a specific chain (route that frontend expects)
 router.get('/balance/:chainId/:walletAddress', async (req, res) => {
 		const { chainId, walletAddress } = req.params;
@@ -395,6 +865,140 @@ router.get('/balance/:chainId/:walletAddress', async (req, res) => {
 	}
 });
 
+/**
+ * @swagger
+ * /wallet/token-transactions/{chainId}/{tokenSymbol}/{walletAddress}:
+ *   get:
+ *     summary: Get token transaction history
+ *     tags: [Wallet]
+ *     description: Retrieve transaction history for a specific token on a wallet address
+ *     parameters:
+ *       - in: path
+ *         name: chainId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Blockchain network ID
+ *       - in: path
+ *         name: tokenSymbol
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Token symbol (e.g., USDC, ETH)
+ *       - in: path
+ *         name: walletAddress
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Wallet address to get transactions for
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: string
+ *           default: "1"
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: string
+ *           default: "10"
+ *         description: Number of transactions per page
+ *     responses:
+ *       200:
+ *         description: Token transactions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 transactions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       hash:
+ *                         type: string
+ *                         description: Transaction hash
+ *                       from:
+ *                         type: string
+ *                         description: Sender address
+ *                       to:
+ *                         type: string
+ *                         description: Recipient address
+ *                       value:
+ *                         type: string
+ *                         description: Transaction value
+ *                       tokenSymbol:
+ *                         type: string
+ *                         description: Token symbol
+ *                       tokenName:
+ *                         type: string
+ *                         description: Token name
+ *                       tokenDecimal:
+ *                         type: string
+ *                         description: Token decimals
+ *                       gasPrice:
+ *                         type: string
+ *                         description: Gas price
+ *                       gasUsed:
+ *                         type: string
+ *                         description: Gas used
+ *                       timeStamp:
+ *                         type: string
+ *                         description: Transaction timestamp
+ *                       blockNumber:
+ *                         type: string
+ *                         description: Block number
+ *                       contractAddress:
+ *                         type: string
+ *                         description: Token contract address
+ *                       type:
+ *                         type: string
+ *                         enum: [send, receive]
+ *                         description: Transaction type
+ *                 totalCount:
+ *                   type: number
+ *                   description: Total number of transactions
+ *                 chain:
+ *                   type: string
+ *                   description: Chain name
+ *                 walletAddress:
+ *                   type: string
+ *                   description: Wallet address
+ *                 tokenSymbol:
+ *                   type: string
+ *                   description: Token symbol
+ *                 page:
+ *                   type: number
+ *                   description: Current page number
+ *       400:
+ *         description: Unsupported chain or token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to get transactions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ */
 // Get ERC20 token transactions for a wallet
 router.get('/token-transactions/:chainId/:tokenSymbol/:walletAddress', async (req, res) => {
 	try {

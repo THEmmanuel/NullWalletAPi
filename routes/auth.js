@@ -13,6 +13,13 @@ const {
 } = require('../services/EthWallet');
 const { generateWalletAddress } = require('../modules/nullnet/utils/wallet');
 
+/**
+ * @swagger
+ * tags:
+ *   name: Authentication
+ *   description: User authentication and authorization endpoints
+ */
+
 // Rate limiters
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -43,6 +50,13 @@ const hashToken = (token) => {
 };
 
 const generateTokens = (userId) => {
+    // Check if JWT secrets are configured
+    if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET) {
+        console.error('JWT secrets not configured! Please set JWT_SECRET and JWT_REFRESH_SECRET environment variables');
+        throw new Error('JWT configuration missing. Please set JWT_SECRET and JWT_REFRESH_SECRET environment variables.');
+    }
+    
+    console.log('Generating tokens with configured secrets...');
     const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
     return { accessToken, refreshToken };
@@ -62,6 +76,77 @@ const createNullNetWallet = async () => {
     };
 };
 
+/**
+ * @swagger
+ * /api/auth/signup:
+ *   post:
+ *     summary: Create a new user account
+ *     tags: [Authentication]
+ *     description: Register a new user with either password-based or token-based authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - authMethod
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email address (required for password auth)
+ *               password:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: User password (required for password auth, must contain uppercase, lowercase, number, and special character)
+ *               authMethod:
+ *                 type: string
+ *                 enum: [password, token]
+ *                 description: Authentication method to use
+ *             example:
+ *               email: "user@example.com"
+ *               password: "SecurePass123!"
+ *               authMethod: "password"
+ *     responses:
+ *       201:
+ *         description: Account created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       description: Unique user identifier
+ *                     token:
+ *                       type: string
+ *                       description: Authentication token (for token-based auth)
+ *                     walletAddress:
+ *                       type: string
+ *                       description: Generated Ethereum wallet address
+ *                     message:
+ *                       type: string
+ *                       description: Success message
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Signup routes
 router.post('/signup', async (req, res) => {
     try {
@@ -189,44 +274,165 @@ router.post('/signup', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Authenticate user and get access tokens
+ *     tags: [Authentication]
+ *     description: Login with either password or token authentication method
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - authMethod
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email (required for password auth)
+ *               password:
+ *                 type: string
+ *                 description: User password (required for password auth)
+ *               token:
+ *                 type: string
+ *                 description: Authentication token (required for token auth)
+ *               authMethod:
+ *                 type: string
+ *                 enum: [password, token]
+ *                 description: Authentication method to use
+ *             example:
+ *               email: "user@example.com"
+ *               password: "SecurePass123!"
+ *               authMethod: "password"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       description: User identifier
+ *                     accessToken:
+ *                       type: string
+ *                       description: JWT access token
+ *                     refreshToken:
+ *                       type: string
+ *                       description: JWT refresh token
+ *                     message:
+ *                       type: string
+ *                       description: Success message
+ *       400:
+ *         description: Bad request - missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - invalid credentials or unverified email
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Too many login attempts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Login routes
 router.post('/login', loginLimiter, async (req, res) => {
+    console.log('=== LOGIN REQUEST START ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    
     try {
         const { email, password, token, authMethod } = req.body;
+        console.log('Extracted fields:', { 
+            email: email ? `${email.substring(0, 3)}***` : 'undefined', 
+            password: password ? '***' : 'undefined', 
+            token: token ? `${token.substring(0, 10)}***` : 'undefined', 
+            authMethod 
+        });
+
+        if (!authMethod) {
+            console.log('ERROR: No authMethod provided');
+            return res.status(400).json({
+                success: false,
+                error: { code: 'AUTH_001', message: 'Authentication method is required' }
+            });
+        }
+
+        console.log(`Processing ${authMethod} authentication`);
 
         if (authMethod === 'password') {
+            console.log('=== PASSWORD AUTH FLOW ===');
+            
             if (!email || !password) {
+                console.log('ERROR: Missing email or password');
+                console.log('Email provided:', !!email);
+                console.log('Password provided:', !!password);
                 return res.status(400).json({
                     success: false,
                     error: { code: 'AUTH_001', message: 'Email and password are required' }
                 });
             }
 
+            console.log('Looking for user with email and password auth method...');
             const user = await Users.findOne({ email, authMethod: 'password' });
+            console.log('User lookup result:', user ? `Found user ID: ${user.userID}` : 'No user found');
+            
             if (!user) {
+                console.log('ERROR: User not found with email and password auth method');
                 return res.status(401).json({
                     success: false,
                     error: { code: 'AUTH_001', message: 'Invalid credentials' }
                 });
             }
 
+            console.log('Checking email verification status...');
+            console.log('isEmailVerified:', user.isEmailVerified);
+            
+            // Allow login regardless of email verification status
             if (!user.isEmailVerified) {
-                return res.status(401).json({
-                    success: false,
-                    error: { code: 'AUTH_005', message: 'Email not verified' }
-                });
+                console.log('WARNING: User email not verified, but allowing login');
             }
 
+            console.log('Comparing password with bcrypt...');
             const isValidPassword = await bcrypt.compare(password, user.password);
+            console.log('Password comparison result:', isValidPassword);
+            
             if (!isValidPassword) {
+                console.log('ERROR: Password comparison failed');
                 return res.status(401).json({
                     success: false,
                     error: { code: 'AUTH_001', message: 'Invalid credentials' }
                 });
             }
 
+            console.log('Generating JWT tokens...');
             const { accessToken, refreshToken } = generateTokens(user.userID);
+            console.log('Tokens generated successfully');
 
+            console.log('=== PASSWORD AUTH SUCCESS ===');
             return res.json({
                 success: true,
                 data: {
@@ -237,25 +443,38 @@ router.post('/login', loginLimiter, async (req, res) => {
                 }
             });
         } else if (authMethod === 'token') {
+            console.log('=== TOKEN AUTH FLOW ===');
+            
             if (!token) {
+                console.log('ERROR: No token provided');
                 return res.status(400).json({
                     success: false,
                     error: { code: 'AUTH_002', message: 'Token is required' }
                 });
             }
 
+            console.log('Hashing provided token...');
             const hashedToken = hashToken(token);
+            console.log('Token hashed successfully');
+
+            console.log('Looking for user with hashed token and token auth method...');
             const user = await Users.findOne({ token: hashedToken, authMethod: 'token' });
+            console.log('User lookup result:', user ? `Found user ID: ${user.userID}` : 'No user found');
             
             if (!user) {
+                console.log('ERROR: User not found with provided token');
+                console.log('Searched for token hash:', hashedToken.substring(0, 10) + '***');
                 return res.status(401).json({
                     success: false,
                     error: { code: 'AUTH_002', message: 'Invalid token' }
                 });
             }
 
+            console.log('Generating JWT tokens...');
             const { accessToken, refreshToken } = generateTokens(user.userID);
+            console.log('Tokens generated successfully');
 
+            console.log('=== TOKEN AUTH SUCCESS ===');
             return res.json({
                 success: true,
                 data: {
@@ -267,19 +486,86 @@ router.post('/login', loginLimiter, async (req, res) => {
             });
         }
 
+        console.log('ERROR: Invalid authentication method:', authMethod);
         return res.status(400).json({
             success: false,
             error: { code: 'AUTH_001', message: 'Invalid authentication method' }
         });
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('=== LOGIN ERROR ===');
+        console.error('Error type:', error.constructor.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        
         res.status(500).json({
             success: false,
-            error: { code: 'AUTH_001', message: 'Error during login' }
+            error: { 
+                code: 'AUTH_001', 
+                message: 'Error during login',
+                details: error.message
+            }
         });
+    } finally {
+        console.log('=== LOGIN REQUEST END ===');
     }
 });
 
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset
+ *     tags: [Authentication]
+ *     description: Send password reset instructions to user's email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email address
+ *             example:
+ *               email: "user@example.com"
+ *     responses:
+ *       200:
+ *         description: Password reset instructions sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Password reset instructions sent to your email"
+ *       404:
+ *         description: Email not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Too many password reset attempts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Password reset routes
 router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
     try {
@@ -315,6 +601,60 @@ router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password with token
+ *     tags: [Authentication]
+ *     description: Reset user password using the token from forgot-password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - newPassword
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Password reset token from email
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 description: New password (must contain uppercase, lowercase, number, and special character)
+ *             example:
+ *               token: "reset_token_here"
+ *               newPassword: "NewSecurePass123!"
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Password reset successful"
+ *       400:
+ *         description: Invalid or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/reset-password', async (req, res) => {
     try {
         const { token, newPassword } = req.body;
@@ -351,6 +691,61 @@ router.post('/reset-password', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/auth/forgot-token:
+ *   post:
+ *     summary: Request token recovery
+ *     tags: [Authentication]
+ *     description: Send token recovery instructions to user's email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email address
+ *             example:
+ *               email: "user@example.com"
+ *     responses:
+ *       200:
+ *         description: Token recovery instructions sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Token recovery instructions sent to your email"
+ *       404:
+ *         description: Email not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       429:
+ *         description: Too many token recovery attempts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // Token recovery routes
 router.post('/forgot-token', tokenRecoveryLimiter, async (req, res) => {
     try {
@@ -386,6 +781,66 @@ router.post('/forgot-token', tokenRecoveryLimiter, async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/auth/verify-token-recovery:
+ *   post:
+ *     summary: Verify token recovery and get new token
+ *     tags: [Authentication]
+ *     description: Verify recovery token and generate new authentication token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - email
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Recovery token from email
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: User email address
+ *             example:
+ *               token: "recovery_token_here"
+ *               email: "user@example.com"
+ *     responses:
+ *       200:
+ *         description: Token recovery successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     newToken:
+ *                       type: string
+ *                       description: New authentication token
+ *                     message:
+ *                       type: string
+ *                       example: "Token recovery successful"
+ *       400:
+ *         description: Invalid or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 router.post('/verify-token-recovery', async (req, res) => {
     try {
         const { token, email } = req.body;

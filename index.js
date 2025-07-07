@@ -5,6 +5,9 @@ const PORT = process.env.PORT || 4444;
 const cors = require("cors");
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./swagger');
+
 const userRoutes = require('./routes/users');
 const authRoutes = require('./routes/auth');
 const walletRoutes = require('./routes/wallet');
@@ -40,6 +43,13 @@ mongoose.connect(MONGO_URI, {
 	.catch(err => console.log(err))
 
 app.use(express.json()); // Middleware to parse JSON request bodies
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Null Wallet API Documentation'
+}));
+
 // app.use("/unlock-hash", unlockHashRoutes);
 // app.use("/kinetic-keys", kineticKeyRoutes);
 app.use("/api/auth", authRoutes); // Add auth routes
@@ -58,12 +68,6 @@ app.get("/", (req, res) => {
 	res.send("Null Wallet API");
 });
 
-// Only listen on a port if we're not in a serverless environment
-if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
-	app.listen(PORT, () => {
-		console.log(`Null Wallet Server listening on port ${PORT}`);
-	});
-}
-
-// Export the app for Vercel
-module.exports = app;
+app.listen(PORT, () => {
+	console.log(`Null Wallet Server listening on port ${PORT}`);
+});
