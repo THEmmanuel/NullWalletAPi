@@ -3,9 +3,13 @@
 	"version": "1.0.0",
 	"description": "Null Wallet Backend",
 	"main": "index.js",
+	"engines": {
+		"node": ">=20.18.0"
+	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"start": "nodemon index.js"
+		"start": "nodemon index.js",
+		"start:prod": "nodemon index.js"
 	},
 	"author": "Emmanuel Ayodele Bello",
 	"license": "ISC",
